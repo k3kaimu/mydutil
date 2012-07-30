@@ -2,7 +2,7 @@
 + テンプレートメタプログラミングの要素をつめあわせたモジュールです。
 +/
 
-module mydutil.util.tmp;
+module mydutil.util.templates;
 
 import std.typetuple;
 import std.traits       : Unqual;
@@ -113,118 +113,4 @@ template isAllValue(E...){
 		else
 			enum bool isAllValue = false;
 	}
-}
-
-
-///predを述語に変換する
-template toPredicate(alias pred,T,string Type = "unary",U = bool){
-	static if(is(typeof(pred) : string))
-		mixin("alias "~Type~"Fun!pred toPredicate;");
-	else static if(__traits(compiles,pred!(T)))
-		alias pred!T toPredicate;
-	else
-		alias pred toPredicate;
-}
-unittest{
-	static assert(NDimArray!(int,4).stringof == "int[][][][]");
-	static assert(is(CreateTypeTuple!(4,4,3,3,"string") == TypeTuple!(int, int, int, int, string)));
-	static assert(isAllType!(int,int,int,long));
-	static assert(isAllValue!(1,2,3,4,"long"));
-	static assert(isAnySame!(int,long,int));
-}
-
-
-///E[0] == E[1] || E[0] == E[2] || … ||　E[0] == E[n-1]をする。
-template isAnySame(E...){
-	static if(E.length < 2){
-		enum isAnySame = false;
-	
-	}else static if(E.length == 2){
-		static if(is(E[0] == E[1]))
-			enum isAnySame = true;
-		else
-			enum isAnySame = false;
-	}else{
-		static if(is(E[0] == E[1]))
-			enum isAnySame = true;
-		else
-			enum isAnySame = isAnySame!(E[0],E[2..$]);
-	}
-}
-
-
-///E[0] == E[1] && E[0] == E[2] && … &&　E[0] == E[n-1]をする。
-template isAllSame(E...){
-	static if(E.length < 2){
-		immutable isAllSame = false;
-	
-	}else static if(E.length == 2){
-		static if(is(E[0] == E[1]))
-			immutable isAllSame = true;
-		else
-			immutable isAllSame = false;
-	
-	}else{
-		static if(is(E[0] == E[1]))
-			immutable isAllSame = isAllSame!(E[1..$]);
-		else
-			immutable isAllSame = false;
-	}
-}
-
-
-template isAllEquals(T...){
-    template To(E...){
-        static if(T.length != E.length)
-            enum To = false;
-        else static if(is(T[0] == E[0]))
-            enum To = isAllEquals!(T[1..$]).To!(E[1..$]);
-        else
-            enum To = false;
-    }
-}
-
-
-template isAllSatisfy(alias Templ, T...){
-    template To(U...){
-        static if(T.length != U.length)
-            enum To = false;
-        else static if(T.length == 1)
-            enum To = Templ!(T[0],U[0]);
-        else static if(Templ!(T[0],U[0]))
-            enum To = isAllSatisfy!(Templ, T[1..$]).To!(U[1..$]);
-        else
-            enum To = false;
-    }
-}
-
-template toImmutable(T){
-    alias immutable(Unqual!T) toImmutable;
-}
-
-
-struct ValueMatch(T){
-private:
-    T _val;
-    
-public:
-    this(T src){
-        _val = src;
-    }
-    
-    T opCall(F...)(F args)if(isAllSatisfy!(isValuePattern, F)){
-        foreach(e ;args){
-            if(e.check(_val))
-                return e(_val);
-        }
-        assert(0, "Pattern Match Error");
-    }
-}
-
-struct ValuePattern(alias pred, T){
-    alias unaryFun!pred check;
-    
-    T opCall(lazy T _val){
-        return _val;
-    }
 }

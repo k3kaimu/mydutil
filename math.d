@@ -1,4 +1,4 @@
-module mydutil.arith.method;
+module mydutil.math;
 
 import std.math;
 import std.array;
@@ -12,18 +12,9 @@ import core.bitop;
 import std.range;
 import std.typecons;
 
-import mydutil.arith.squence;
-import mydutil.util.bits;
+import mydutil.range;
 
-version(unittest){
-	pragma(lib,"mydutil");
-	import std.stdio;
-	void main(){
-		writeln("Unittest End");
-	}
-}
-
-///素数かどうか判定する。高速
+///素数かどうか判定する
 pure bool isPrime(T)(T src)if(__traits(isIntegral,T)){
 	if(src <= 1)return false;
 	else if(src < 4)return true;
@@ -43,13 +34,8 @@ unittest{
 	assert(equal(filter!isPrime_lowspeed(iota(1L,100000L)) , filter!isPrime(iota(1L,100000L))));
 }
 
-///twinとtwin+2が素数であるかどうか判定
-pure bool TwinisPrime(T)(T twin){
-	return isPrime(twin) && isPrime(twin+2);
-}
-
 ///BigIntの最大公約数を返す
-BigInt Gcd(BigInt x, BigInt y){
+BigInt gcd(BigInt x, BigInt y){
 	if(x == 0 || y == 0)
 		return BigInt(1);
 	
@@ -71,18 +57,21 @@ pure T lcm(T)(T x, T y){
 
 ///階乗を返す。
 BigInt factorial(T:BigInt, U)(U X){
-	if(X==0)return BigInt(1);
+	if(X == 0)return BigInt(1);
+    
 	BigInt ret=X;
-	for(int i = 2; i < X; ++i)
+    
+    foreach(i; 2..X)
 		ret *= i;
+    
 	return ret;
 }
 
 ///ditto
-T factorial(T = long, U)(U x){
+pure T factorial(T = long, U)(U x){
 	if(x <= 1)return 1;
 	else{
-		T ret=x;
+		T ret = x;
 		foreach(i; 2..x)
 			ret *= i;
 		return ret;
@@ -114,81 +103,6 @@ pure T[] divisor(T)(T x){
 	return dst ~ dst_b.reverse;
 }
 
-
-/++素因数分解した結果を返す。返り値は素因数とその乗数のタプルの配列
-Example:
----------------------------------------------
-assert(equal(primefactor(128),[tuple(2,7u)]));
-assert(equal(primefactor(412),[tuple(2,2u),tuple(103,1u)]));
-assert(equal(primefactor(512),[tuple(2,9u)]));
-assert(equal(primefactor(27),[tuple(3,3u)]));
----------------------------------------------
-+/
-Tuple!(T,uint)[] primefactor_lowspeed(T)(T x)if(__traits(isIntegral,T)){
-	auto pr = satisfysquence!isPrime(2);		//素数列
-	auto app = appender!(Tuple!(T,uint)[])();
-	bool f;
-	
-	for(;x > 1;pr.popFront){
-		f = false;
-		while(!(x%pr.front)){
-			if(!f)
-				app.put(Tuple!(T,uint)(pr.front,1u));
-			else
-				app.data[$-1][1] += 1;
-			f = true;
-			x /= pr.front;
-		}
-	}
-	return app.data;;
-}
-unittest{
-	assert(equal(primefactor(128),[tuple(2,7u)]));
-	assert(equal(primefactor(412),[tuple(2,2u),tuple(103,1u)]));
-	assert(equal(primefactor(512),[tuple(2,9u)]));
-	assert(equal(primefactor(27),[tuple(3,3u)]));
-}
-
-///素因数分解する際に、外部の素数リストを使う。
-Tuple!(T,uint)[] primefactor_lowspeed(T,U)(T x,ref U[] primes){
-	auto app = appender!(Tuple!(T,uint)[])();
-	bool f;
-	
-	for(int i = 0; x > 1 || i < primes.length;++i){
-		f = false;
-		while(!(x%primes[i])){
-			if(!f)
-				app.put(Tuple!(T,uint)(primes[i],1u));
-			else
-				app.data[$-1][1] += 1;
-			f = true;
-			x /= primes[i];
-		}
-	}
-    if(x > 1){
-        auto pr = primeSquence(primes[$-1]);
-        pr.popFront;
-        for(;x > 1;pr.popFront){
-            primes ~= pr.front;
-            f = false;
-            while(!(x % pr.front)){
-                if(!f)
-                    app.put(Tuple!(T,uint)(pr.front,1u));
-                else
-                    app.data[$-1][1] += 1;
-                f = true;
-                x /= pr.front;
-            }
-        }
-    }
-	return app.data;
-}
-unittest{
-	assert(equal(primefactor(128),[tuple(2,7u)]));
-	assert(equal(primefactor(412),[tuple(2,2u),tuple(103,1u)]));
-	assert(equal(primefactor(512),[tuple(2,9u)]));
-	assert(equal(primefactor(27),[tuple(3,3u)]));
-}
 
 /++フェルマーの方法(平方差分法)から素因数分解を行います。
 Example:
@@ -255,15 +169,15 @@ body{
     if(bp || bq){
         auto ps = appender!(T[])();
         if(bp)
-            foreach(g;primefactor(p))
-                for(int i=0;i<g[1];++i)
+            foreach(g; primefactor(p))
+                foreach(i; 0..g[1])
                     ps.put(g[0]);
         else
             ps.put(p);
         
         if(bq)
-            foreach(g;primefactor(q))
-                for(int i=0;i<g[1];++i)
+            foreach(g; primefactor(q))
+                foreach(i; 0..g[1])
                     ps.put(g[0]);
         else
             ps.put(q);
@@ -290,31 +204,8 @@ unittest{
     assert(equal(primefactor(75),[tuple(3,1u),tuple(5,2u)]));
 }
 
-deprecated{
-    ///BigIntをstring型に変換する。
-    string BigIntToString(string s="d")(BigInt src)if(s=="d"||s=="x"||s=="X"){
-        struct BIS{
-            this(BigInt B){
-                _val = B;
-                _val.toString(&ToString,s);
-            }
-            void ToString(const(char)[] sink){
-                _sv = cast(string)sink;
-            }
-            string toString(){
-                return _sv;
-            }
-            BigInt _val;
-            string _sv;
-        }
-        
-        BIS b = BIS(src);
-        return b.toString();
-    }
-}
-
 ///数をbase進の桁ごとに区切った配列を返す。例123→[1,2,3].reverse
-int[] splitdigit(uint Base = 10,T)(T a){
+pure int[] splitDigit(uint Base = 10,T)(T a){
 	int[] dst;
 	//Tを桁ごとに区切ったものを配列として返す。
 	while(a != 0){
@@ -330,14 +221,12 @@ int[] splitdigit(uint Base = 10,T)(T a){
 }
 unittest{
 	import std.algorithm;
-	writeln("Unittest Start ",__LINE__);
-	assert(equal(splitdigit(123),[1,2,3].reverse));
-	writeln("Unittest End ",__LINE__);
+	assert(equal(splitDigit(123),[1,2,3].reverse));
 }
 
 ///回文数かどうか判定
 bool isPalindromic(uint Base = 10,T)(T a){
-	auto spdg = splitdigit!Base(a);
+	auto spdg = splitDigit!Base(a);
 	return equal(spdg,spdg.dup.reverse);
 }
 
@@ -384,7 +273,7 @@ unittest{
 }
 
 ///真のPandigital数(0からBase-1が一度ずつ桁に含まれる)ならtrueを返す。
-bool isPandigital(uint Base = 10,bool type : true,T)(T src)if(__traits(isIntegral,T)){
+pure bool isPandigital(uint Base = 10,bool type : true,T)(T src)if(__traits(isIntegral,T)){
 	T[] digs = splitdigit(src);
 	
 	if(digs.length != Base)
@@ -447,26 +336,26 @@ pure T permcount(T)(T n,T m)if(__traits(isIntegral,T)){
 }
 
 ///エラトステネスの篩にかけて、素数リストを返します。
-T[] eratosthenesSieve(T)(T End)
+T[] sieve(T)(T End)
 in{assert(End>0);}body{
-	BitList b;	//判定
-	//BitArray b;
+	BitArray b;	//判定
 	b.length = End;
 	T[] prime = [2,3];//素数リスト
 	T SQRTEND = cast(T)sqrt(cast(real)End);
 	T n = 2;
-	T limit,cnt=0,pmax=5;
+	T limit, cnt = 0, pmax = 5;
+    
 	while(n < SQRTEND){		//リストのsqrtまで素数判定する
-		for(T i=n*2;i<End;i+=n)
+		for(T i = n * 2; i < End; i += n)
 			b[i] = true;
 		//素数リストを更新
 		limit = n^^2;
-		for(;pmax<limit;pmax+=2)
+		for(; pmax < limit; pmax += 2)
 			if(!b[pmax])prime ~= pmax;
 		++cnt;
 		n = prime[cnt];
 	}
-	for(T i=pmax;i<End;i+=2)
+	for(T i = pmax; i < End; i += 2)
 		if(!b[i])prime ~= i;
 	return prime;
 }
@@ -563,7 +452,7 @@ body{
 }
 
 ///オイラーのφ関数をlimの数値まで計算して返します。primesには素数リストを渡しておきます。
-T[] eulersTotient_fast(T,U)(T lim,ref U[] primes)
+T[] eulersTotient(T,U)(T lim, ref U[] primes)
 in{assert(n > 1);}
 body{
     auto faiapp = appender!(int[])([1,1]);
@@ -571,11 +460,11 @@ body{
         auto p = primeSquence(primes[$-1]);
         primes.popFront;
         
-        foreach(p;p.takeWhile(cast(int)sqrt(cast(float)lim)+1))
+        foreach(p; p.takeWhile(cast(int)sqrt(cast(float)lim)+1))
             primes ~= p;
     }
     
-    for(int n=2;n<lim;n++){
+    foreach(n; 2..lim){
         if(prs[0] < n)
             popFrontWhile(prs,n);
         
@@ -584,9 +473,9 @@ body{
             continue;
         }
         
-        foreach(i;primes){
-            if(!(n%i)){
-                if(!((n/i)%i))
+        foreach(i; primes){
+            if(!(n % i)){
+                if(!((n / i) % i))
                     faiapp.put(faiapp.data[n/i] * i);
                 else
                     faiapp.put(faiapp.data[n/i] * (i - 1));
